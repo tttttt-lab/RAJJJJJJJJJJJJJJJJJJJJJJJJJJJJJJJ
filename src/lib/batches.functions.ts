@@ -72,6 +72,15 @@ const batchesCache = new Map<string, { at: number; list: Batch[] }>();
 const folderCache = new Map<string, { at: number; list: ContentItem[] }>();
 const liveCache = new Map<string, { at: number; list: LiveSession[] }>();
 
+// Official PW gateway requests stay server-side so the access token is never sent to the browser.
+const PW_HEADERS: Record<string, string> = {
+  accept: "application/json, text/plain, */*",
+  "user-agent": "Mozilla/5.0",
+  referer: "https://www.learnxpw.site/",
+  origin: "https://www.learnxpw.site",
+  ...(process.env.JWT ? { authorization: `Bearer ${process.env.JWT}` } : {}),
+};
+
 // Real verified MissionJeet Drona batches with real CloudFront assets
 const REAL_MJ_BATCHES: Batch[] = [
   {
@@ -796,26 +805,28 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "pw") {
       try {
         const pages = await Promise.all(
-          [1, 2, 3, 4, 5, 6].map(
+          Array.from({ length: 20 }, (_, index) => index + 1).map(
             (n) =>
               fetch(`https://www.learnxpw.site/api/AllBatches?page=${n}`, {
-                headers: { "user-agent": "Mozilla/5.0" },
-                signal: AbortSignal.timeout(6000),
+                headers: PW_HEADERS,
+                signal: AbortSignal.timeout(8000),
               })
-                .then((r) => r.json())
+                .then((r) => (r.ok ? r.json() : {}))
                 .catch(() => ({})) as Promise<{ batches?: Record<string, unknown>[] }>,
           ),
         );
+        const seen = new Set<string>();
         const list: Batch[] = pages
           .flatMap((p) => p.batches ?? [])
           .map((b) => ({
-            id: String(b["_id"]),
-            title: String(b["name"] ?? "").trim(),
-            thumbnail: String(b["previewImage"] ?? ""),
-            banner: String(b["previewImage"] ?? ""),
+            id: String(b["_id"] ?? b["id"] ?? ""),
+            title: String(b["name"] ?? b["title"] ?? "").trim(),
+            thumbnail: String(b["previewImage"] ?? b["thumbnail"] ?? ""),
+            banner: String(b["previewImage"] ?? b["thumbnail"] ?? ""),
             platform: "pw",
             hasApi: true,
-          }));
+          }))
+          .filter((b) => b.id && b.title && !seen.has(b.id) && seen.add(b.id));
         if (list.length > 0) {
           batchesCache.set(cacheKey, { at: Date.now(), list });
           return list;
@@ -853,11 +864,14 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "rwa") {
       try {
         const res = await fetch("https://studybeepro.site/rwax/batches.json", {
-          headers: { "user-agent": "Mozilla/5.0" },
+          headers: PW_HEADERS,
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
-          const json = (await res.json()) as { new?: Record<string, unknown>[]; old?: Record<string, unknown>[] };
+          const json = (await res.json()) as {
+            new?: Record<string, unknown>[];
+            old?: Record<string, unknown>[];
+          };
           const raw = [...(json.new || []), ...(json.old || [])];
           const list: Batch[] = raw.map((b) => {
             const rawThumb = String(b["thumbnail"] || "").trim();
@@ -891,11 +905,14 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "sa") {
       try {
         const res = await fetch("https://studybeepro.site/sachinacademy/batches.json", {
-          headers: { "user-agent": "Mozilla/5.0" },
+          headers: PW_HEADERS,
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
-          const json = (await res.json()) as { new?: Record<string, unknown>[]; old?: Record<string, unknown>[] };
+          const json = (await res.json()) as {
+            new?: Record<string, unknown>[];
+            old?: Record<string, unknown>[];
+          };
           const raw = [...(json.new || []), ...(json.old || [])];
           const list: Batch[] = raw.map((b) => {
             const rawThumb = String(b["thumbnail"] || "").trim();
@@ -929,11 +946,14 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "vg") {
       try {
         const res = await fetch("https://studybeepro.site/vidyagram/batches.json", {
-          headers: { "user-agent": "Mozilla/5.0" },
+          headers: PW_HEADERS,
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
-          const json = (await res.json()) as { new?: Record<string, unknown>[]; old?: Record<string, unknown>[] };
+          const json = (await res.json()) as {
+            new?: Record<string, unknown>[];
+            old?: Record<string, unknown>[];
+          };
           const raw = [...(json.new || []), ...(json.old || [])];
           const list: Batch[] = raw.map((b) => {
             const rawThumb = String(b["thumbnail"] || "").trim();
@@ -966,11 +986,14 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "sf") {
       try {
         const res = await fetch("https://studybeepro.site/sf/batches.json", {
-          headers: { "user-agent": "Mozilla/5.0" },
+          headers: PW_HEADERS,
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
-          const json = (await res.json()) as { new?: Record<string, unknown>[]; old?: Record<string, unknown>[] };
+          const json = (await res.json()) as {
+            new?: Record<string, unknown>[];
+            old?: Record<string, unknown>[];
+          };
           const raw = [...(json.new || []), ...(json.old || [])];
           const list: Batch[] = raw.map((b) => {
             const rawThumb = String(b["thumbnail"] || "").trim();
@@ -1003,11 +1026,14 @@ export const getBatches = createServerFn({ method: "GET" })
     if (platId === "ua-on") {
       try {
         const res = await fetch("https://studypanda.live/scienceandfun/batches", {
-          headers: { "user-agent": "Mozilla/5.0" },
+          headers: PW_HEADERS,
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
-          const json = (await res.json()) as { new?: Record<string, unknown>[]; old?: Record<string, unknown>[] };
+          const json = (await res.json()) as {
+            new?: Record<string, unknown>[];
+            old?: Record<string, unknown>[];
+          };
           const raw = [...(json.new || []), ...(json.old || [])];
           const list: Batch[] = raw.map((b) => {
             const rawThumb = String(b["thumbnail"] || "").trim();
@@ -1082,7 +1108,7 @@ export const getPiCategories = createServerFn({ method: "GET" }).handler(async (
   }
   try {
     const res = await fetch("https://www.learnxpw.site/api/pi/pw/category", {
-      headers: { "user-agent": "Mozilla/5.0" },
+      headers: PW_HEADERS,
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
@@ -1111,7 +1137,7 @@ export const getPiCategoryChildren = createServerFn({ method: "GET" })
     try {
       const res = await fetch(
         `https://www.learnxpw.site/api/pi/pw/category/${encodeURIComponent(data.categoryId)}/children`,
-        { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+        { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
       );
       if (res.ok) {
         const json = (await res.json()) as { success?: boolean; data?: unknown[] };
@@ -1131,7 +1157,7 @@ export const getPiWidgets = createServerFn({ method: "GET" })
     try {
       const res = await fetch(
         `https://www.learnxpw.site/api/pi/pw/widget?categoryId=${encodeURIComponent(data.categoryId)}&page=1&limit=30`,
-        { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+        { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
       );
       if (res.ok) {
         const json = (await res.json()) as { success?: boolean; data?: Record<string, unknown>[] };
@@ -1151,7 +1177,7 @@ export const getPiWidgetContent = createServerFn({ method: "GET" })
     try {
       const res = await fetch(
         `https://www.learnxpw.site/api/pi/pw/widget/${encodeURIComponent(data.widgetId)}/content-list?page=1&limit=30`,
-        { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+        { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
       );
       if (res.ok) {
         const json = (await res.json()) as { success?: boolean; data?: Record<string, unknown>[] };
@@ -1172,7 +1198,7 @@ export const getPiCategoryBatches = createServerFn({ method: "GET" })
     try {
       const res = await fetch(
         `https://www.learnxpw.site/api/pi/pw/widget?categoryId=${encodeURIComponent(categoryId)}&page=1&limit=30`,
-        { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) },
+        { headers: PW_HEADERS, signal: AbortSignal.timeout(6000) },
       );
       if (res.ok) {
         const json = (await res.json()) as { success?: boolean; data?: Record<string, unknown>[] };
@@ -1479,7 +1505,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
         if (folderId === "0" || !folderId) {
           const res = await fetch(
             `https://www.learnxpw.site/api/BatchInfo?BatchId=${courseId}&Type=details`,
-            { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+            { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
           );
           if (res.ok) {
             const json = (await res.json()) as {
@@ -1512,7 +1538,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
         if (folderId && (!parentId || parentId === "0")) {
           const res = await fetch(
             `https://www.learnxpw.site/api/SubjectInfo?BatchId=${courseId}&SubjectId=${folderId}&page=1`,
-            { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+            { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
           );
           if (res.ok) {
             const json = (await res.json()) as {
@@ -1545,13 +1571,13 @@ export const getFolderContents = createServerFn({ method: "GET" })
           const [vidRes, noteRes] = await Promise.all([
             fetch(
               `https://www.learnxpw.site/api/TopicInfo?BatchId=${courseId}&SubjectId=${subjectId}&TopicId=${topicId}&ContentType=videos&page=1`,
-              { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+              { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
             )
               .then((r) => r.json())
               .catch(() => ({ data: [] })),
             fetch(
               `https://www.learnxpw.site/api/TopicInfo?BatchId=${courseId}&SubjectId=${subjectId}&TopicId=${topicId}&ContentType=notes&page=1`,
-              { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+              { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
             )
               .then((r) => r.json())
               .catch(() => ({ data: [] })),
@@ -1610,7 +1636,15 @@ export const getFolderContents = createServerFn({ method: "GET" })
       // Dynamic Batch ID handling for https://studypanda.live as requested by user
       // Batch 1 (184): Drona 2.0 NEET, Batch 2 (185): Drona 2.0 JEE, Batch 3 (151): Drona JEE, Batch 4 (152): Drona NEET
       const dynamicBatchId =
-        courseId === "184" ? "1" : courseId === "185" ? "2" : courseId === "151" ? "3" : courseId === "152" ? "4" : courseId;
+        courseId === "184"
+          ? "1"
+          : courseId === "185"
+            ? "2"
+            : courseId === "151"
+              ? "3"
+              : courseId === "152"
+                ? "4"
+                : courseId;
 
       try {
         // Try studypanda.live dynamic batch query first
@@ -1623,11 +1657,14 @@ export const getFolderContents = createServerFn({ method: "GET" })
         for (const pandaUrl of pandaUrls) {
           try {
             const pRes = await fetch(pandaUrl, {
-              headers: { "user-agent": "Mozilla/5.0" },
+              headers: PW_HEADERS,
               signal: AbortSignal.timeout(4000),
             });
             if (pRes.ok) {
-              const pJson = (await pRes.json()) as { data?: Record<string, unknown>[]; lectures?: Record<string, unknown>[] };
+              const pJson = (await pRes.json()) as {
+                data?: Record<string, unknown>[];
+                lectures?: Record<string, unknown>[];
+              };
               const items = pJson.data || pJson.lectures || [];
               if (Array.isArray(items) && items.length > 0) {
                 const list: ContentItem[] = items.map((it) => {
@@ -1640,8 +1677,14 @@ export const getFolderContents = createServerFn({ method: "GET" })
                     foldersCount: isFolder ? Number(it["foldersCount"] || 2) : undefined,
                     videosCount: isFolder ? Number(it["videosCount"] || 6) : 1,
                     pdfsCount: isFolder ? Number(it["pdfsCount"] || 4) : undefined,
-                    streamUrl: (it["streamUrl"] || it["file_link"] || it["videoUrl"]) as string | undefined,
-                    isPdf: Boolean(it["isPdf"] || String(it["title"] || "").toLowerCase().includes("pdf")),
+                    streamUrl: (it["streamUrl"] || it["file_link"] || it["videoUrl"]) as
+                      string | undefined,
+                    isPdf: Boolean(
+                      it["isPdf"] ||
+                      String(it["title"] || "")
+                        .toLowerCase()
+                        .includes("pdf"),
+                    ),
                   };
                 });
                 folderCache.set(cacheKey, { at: Date.now(), list });
@@ -1655,7 +1698,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
         const queryId = folderId === "0" || !folderId ? "" : `&id=${encodeURIComponent(folderId)}`;
         const res = await fetch(
           `https://www.learnxpw.site/api/missionjeet/all-content?courseid=${courseId}${queryId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(6000) },
         );
         if (res.ok) {
           const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -1732,7 +1775,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-184-botany",
               type: "folder" as const,
               title: "🌿 Botany 2.0 (Biological Classification & Plant Kingdom)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
               foldersCount: 3,
               videosCount: 16,
               pdfsCount: 12,
@@ -1741,7 +1785,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-184-zoology",
               type: "folder" as const,
               title: "🐾 Zoology 2.0 (Animal Kingdom, Biomolecules & Cell)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
               foldersCount: 3,
               videosCount: 14,
               pdfsCount: 10,
@@ -1768,7 +1813,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-184-live-archive",
               type: "folder" as const,
               title: "🔴 Concluded Live Sessions (रिकॉर्डेड लेक्चर्स + DPP + नोट्स)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
               foldersCount: 0,
               videosCount: 4,
               pdfsCount: 8,
@@ -1782,7 +1828,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-185-maths",
               type: "folder" as const,
               title: "📐 Mathematics 2.0 (Quadratic Equations, Complex Numbers & Trig)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
               foldersCount: 4,
               videosCount: 20,
               pdfsCount: 15,
@@ -1809,7 +1856,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-185-live-archive",
               type: "folder" as const,
               title: "🔴 Concluded Live Sessions (रिकॉर्डेड लेक्चर्स + DPP + नोट्स)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
               foldersCount: 0,
               videosCount: 4,
               pdfsCount: 8,
@@ -1823,7 +1871,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-151-maths",
               type: "folder" as const,
               title: "📐 Mathematics Foundation (Binomial Theorem & Straight Lines)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
               foldersCount: 3,
               videosCount: 15,
               pdfsCount: 10,
@@ -1832,7 +1881,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-151-physics",
               type: "folder" as const,
               title: "⚡ Physics Foundation (Vectors, Units & Friction)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
               foldersCount: 3,
               videosCount: 14,
               pdfsCount: 10,
@@ -1841,7 +1891,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-151-chemistry",
               type: "folder" as const,
               title: "🧪 Chemistry Foundation (Mole Concept & Redox Reactions)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
               foldersCount: 3,
               videosCount: 14,
               pdfsCount: 10,
@@ -1850,7 +1901,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
               id: "mj-151-live-archive",
               type: "folder" as const,
               title: "🔴 Concluded Live Sessions (रिकॉर्डेड लेक्चर्स + DPP + नोट्स)",
-              thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
+              thumbnail:
+                "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/7574748_131_Class%2011th%20Mission%20Jeet%20JEE%20App%20Banners.jpg",
               foldersCount: 0,
               videosCount: 4,
               pdfsCount: 8,
@@ -1864,7 +1916,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: "mj-152-biology",
             type: "folder" as const,
             title: "🧬 Medical Biology (Cell Biology & NCERT Decoding)",
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
             foldersCount: 4,
             videosCount: 22,
             pdfsCount: 16,
@@ -1873,7 +1926,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: "mj-152-physics",
             type: "folder" as const,
             title: "⚡ NEET Physics (Thermal Properties, Waves & Gravitation)",
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
             foldersCount: 3,
             videosCount: 14,
             pdfsCount: 10,
@@ -1882,7 +1936,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: "mj-152-chemistry",
             type: "folder" as const,
             title: "🧪 NEET Chemistry (Inorganic & Physical Foundation)",
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
             foldersCount: 3,
             videosCount: 14,
             pdfsCount: 10,
@@ -1891,7 +1946,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: "mj-152-live-archive",
             type: "folder" as const,
             title: "🔴 Concluded Live Sessions (रिकॉर्डेड लेक्चर्स + DPP + नोट्स)",
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/4072473_131_Class%2011th%20Mission%20Jeets%20NEET%20App%20Banners.jpg",
             foldersCount: 0,
             videosCount: 4,
             pdfsCount: 8,
@@ -1901,7 +1957,13 @@ export const getFolderContents = createServerFn({ method: "GET" })
 
       // Inside Concluded Live Archive Folder: Concluded Live classes joined with DPP and Notes
       if (folderId.includes("live-archive")) {
-        const batchTag = isBatch184 ? "Drona 2.0 NEET" : isBatch185 ? "Drona 2.0 JEE" : isBatch151 ? "Drona JEE" : "Drona NEET";
+        const batchTag = isBatch184
+          ? "Drona 2.0 NEET"
+          : isBatch185
+            ? "Drona 2.0 JEE"
+            : isBatch151
+              ? "Drona JEE"
+              : "Drona NEET";
         return [
           {
             id: `mj-${courseId}-live-rec-01`,
@@ -1909,14 +1971,16 @@ export const getFolderContents = createServerFn({ method: "GET" })
             title: `[Live Concluded] ${batchTag} — Interactive Masterclass 01 (Recorded Video)`,
             duration: "01:18:40",
             streamUrl: REAL_USER_LIVE_STREAM,
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/241318_131_drona%202.0%20NEET%20banner%20app.png",
             isPdf: false,
           },
           {
             id: `mj-${courseId}-live-notes-01`,
             type: "file" as const,
             title: `[Live Concluded] ${batchTag} — Masterclass 01 Handwritten Classroom Notes (PDF)`,
-            streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+            streamUrl:
+              "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
             thumbnail: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&q=80",
             isPdf: true,
           },
@@ -1924,7 +1988,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: `mj-${courseId}-live-dpp-01`,
             type: "file" as const,
             title: `[Live Concluded] ${batchTag} — Daily Practice Problem (DPP 01 with Solutions PDF)`,
-            streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+            streamUrl:
+              "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
             thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&q=80",
             isPdf: true,
           },
@@ -1934,14 +1999,16 @@ export const getFolderContents = createServerFn({ method: "GET" })
             title: `[Live Concluded] ${batchTag} — Problem Solving Marathon 02 (Recorded Video)`,
             duration: "01:24:10",
             streamUrl: REAL_USER_LIVE_STREAM,
-            thumbnail: "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
+            thumbnail:
+              "https://dulae92u7241v.cloudfront.net/1772100600/admin_v2/uploads/courses/thumbnail/2967410_131_drona%202.0%20JEE%20banner%20app.png",
             isPdf: false,
           },
           {
             id: `mj-${courseId}-live-notes-02`,
             type: "file" as const,
             title: `[Live Concluded] ${batchTag} — Marathon 02 Faculty Formula Sheet (PDF)`,
-            streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+            streamUrl:
+              "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
             thumbnail: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&q=80",
             isPdf: true,
           },
@@ -1949,7 +2016,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
             id: `mj-${courseId}-live-dpp-02`,
             type: "file" as const,
             title: `[Live Concluded] ${batchTag} — Daily Practice Problem (DPP 02 Question Sheet PDF)`,
-            streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+            streamUrl:
+              "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
             thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&q=80",
             isPdf: true,
           },
@@ -1981,7 +2049,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
           id: `mj-${courseId}-${cleanSubName}-notes-1`,
           type: "file" as const,
           title: `${cleanSubName.toUpperCase()} — Complete Handwritten Classroom Notes (PDF)`,
-          streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          streamUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
           thumbnail: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&q=80",
           isPdf: true,
         },
@@ -1989,7 +2058,8 @@ export const getFolderContents = createServerFn({ method: "GET" })
           id: `mj-${courseId}-${cleanSubName}-dpp-1`,
           type: "file" as const,
           title: `${cleanSubName.toUpperCase()} — Daily Practice Problem Sheet (DPP 01 with Answer Key PDF)`,
-          streamUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          streamUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
           thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&q=80",
           isPdf: true,
         },
@@ -2002,7 +2072,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
         const parentParam = folderId === "0" || !folderId ? "-1" : folderId;
         const res = await fetch(
           `https://www.learnxpw.site/api/vibrant/course?course_id=${courseId}&parent_id=${parentParam}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -2041,7 +2111,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://backend.multistreaming.site/api/classes?courseId=${courseId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -2373,10 +2443,13 @@ export const getFolderContents = createServerFn({ method: "GET" })
         };
         // Level 1: Root -> Fetch Subjects
         if (folderId === "0" || !folderId) {
-          const res = await fetch(`${domain}/get/allsubjectfrmlivecourseclass?courseid=${courseId}`, {
-            headers,
-            signal: AbortSignal.timeout(8000),
-          });
+          const res = await fetch(
+            `${domain}/get/allsubjectfrmlivecourseclass?courseid=${courseId}`,
+            {
+              headers,
+              signal: AbortSignal.timeout(8000),
+            },
+          );
           if (res.ok) {
             const json = (await res.json()) as { data?: Record<string, unknown>[] };
             const subs = json.data || [];
@@ -2587,7 +2660,7 @@ export const getFolderContents = createServerFn({ method: "GET" })
         "सामान्य हिंदी (General Hindi)",
         "तर्कशक्ति (Reasoning & Mental Ability)",
         "सामान्य गणित (Mathematics)",
-        "सामान्य ज्ञान एवं राज्य GK",
+        "सामान��य ज्ञान एवं राज्य GK",
         "करेंट अफेयर्स एवं स्टेटिक GK",
       ],
       sa: [
@@ -2749,7 +2822,7 @@ export const resolveVideoStream = createServerFn({ method: "GET" })
         const folderParam = parentId || "0";
         const res = await fetch(
           `https://www.learnxpw.site/api/missionjeet/video-details?content_id=${contentId}&course_id=${courseId}&folder_id=${folderParam}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as {
@@ -2776,7 +2849,7 @@ export const resolveVideoStream = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://www.learnxpw.site/api/vibrant/videopower?course_id=${courseId}&video_id=${contentId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as {
@@ -2872,7 +2945,7 @@ export const resolveVideoStream = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://asmultiverse.site/rwa/?course_id=${courseId}&video_id=${contentId}&ytflag=0&folder_wise_course=0&lc_app_api_url=`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as {
@@ -2994,7 +3067,7 @@ export const getLiveSchedule = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://backend.multistreaming.site/api/classes?courseId=${courseId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -3021,7 +3094,7 @@ export const getLiveSchedule = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://www.learnxpw.site/api/vibrant/live?course_id=${courseId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as {
@@ -3049,7 +3122,7 @@ export const getLiveSchedule = createServerFn({ method: "GET" })
       try {
         const res = await fetch(
           `https://www.learnxpw.site/api/missionjeet/live?batchid=${courseId}`,
-          { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) },
+          { headers: PW_HEADERS, signal: AbortSignal.timeout(8000) },
         );
         if (res.ok) {
           const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -3104,8 +3177,10 @@ export const getLiveSchedule = createServerFn({ method: "GET" })
           status: "completed",
           recordingUrl: REAL_USER_LIVE_STREAM,
           streamUrl: REAL_USER_LIVE_STREAM,
-          notesUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
-          dppUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          notesUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          dppUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
         },
         {
           id: `completed-2-mj-${courseId}`,
@@ -3118,29 +3193,33 @@ export const getLiveSchedule = createServerFn({ method: "GET" })
           status: "completed",
           recordingUrl: REAL_USER_LIVE_STREAM,
           streamUrl: REAL_USER_LIVE_STREAM,
-          notesUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
-          dppUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          notesUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+          dppUrl:
+            "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
         },
       );
     } else {
       // For any OTHER platform, NEVER use REAL_USER_LIVE_STREAM!
       // Add completed recorded sessions with notes & DPPs for other platforms
-      list.push(
-        {
-          id: `completed-1-${platform}-${courseId}`,
-          title: `${courseTitle} — Live Interactive Session 01 (Recorded Video)`,
-          subject: "Syllabus Module",
-          teacher: "Faculty Team",
-          startTime: "Concluded Recently",
-          duration: "01:10:00",
-          isLive: false,
-          status: "completed",
-          recordingUrl: "https://d3uvoof8mq1fao.cloudfront.net/file_library/videos/channel_vod_non_drm_hls/4864061/178906095188442352352/178906095188442352352_2352352.m3u8",
-          streamUrl: "https://d3uvoof8mq1fao.cloudfront.net/file_library/videos/channel_vod_non_drm_hls/4864061/178906095188442352352/178906095188442352352_2352352.m3u8",
-          notesUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
-          dppUrl: "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
-        },
-      );
+      list.push({
+        id: `completed-1-${platform}-${courseId}`,
+        title: `${courseTitle} — Live Interactive Session 01 (Recorded Video)`,
+        subject: "Syllabus Module",
+        teacher: "Faculty Team",
+        startTime: "Concluded Recently",
+        duration: "01:10:00",
+        isLive: false,
+        status: "completed",
+        recordingUrl:
+          "https://d3uvoof8mq1fao.cloudfront.net/file_library/videos/channel_vod_non_drm_hls/4864061/178906095188442352352/178906095188442352352_2352352.m3u8",
+        streamUrl:
+          "https://d3uvoof8mq1fao.cloudfront.net/file_library/videos/channel_vod_non_drm_hls/4864061/178906095188442352352/178906095188442352352_2352352.m3u8",
+        notesUrl:
+          "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+        dppUrl:
+          "https://dxixtlyravvxx.cloudfront.net/540admin_v1/file_manager/pdf/882137768695862800.pdf",
+      });
     }
 
     // 2. Ensure comprehensive UPCOMING scheduled sessions (kon video aane wala hai)
